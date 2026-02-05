@@ -1,0 +1,85 @@
+seed: 0
+device: cuda
+
+run_name: dubins_strict
+out_dir: diff_tube_mpc_strict_pt/outputs
+plot: true
+debug_numerics: false
+use_float64: true
+
+system:
+  name: dubins
+  dt: 0.01
+  horizon_N: 50
+  task_horizon_H: 300
+  # Paper: "computational budget" 10 iterations
+  # Increased aux_max_iter for better tracking performance
+  nominal_max_iter: 10
+  aux_max_iter: 20
+  # Numerical stabilization for iLQR/DDP (Levenberg–Marquardt style)
+  ilqr_reg: 1.0e-3
+  # Paper uses control-limited DDP with line-search; keep a small set of candidates.
+  # Include small steps (and 0.0 fallback) for feasibility line-search
+  line_search_alphas: [1.0, 0.5, 0.25, 0.1, 0.05, 0.01, 0.0]
+  control_bounds:
+    # Paper (supplementary): |v| ≤ 10, |omega| ≤ pi
+    v_min: -10.0
+    v_max: 10.0
+    omega_max: 3.141592653589793
+  disturbance:
+    w_low: [-0.05, -0.05, -0.05]
+    w_high: [0.05, 0.05, 0.05]
+  target: [10.0, 10.0, 0.7853981633974483]
+
+dbas:
+  barrier_type: inverse
+  # Paper: inverse barrier with alpha=0, gamma=0 for Dubins
+  alpha: 0.0
+  gamma: 0.0
+  nominal_tightening: 0.0
+  # Numerical safeguard (prevents float32 overflow in 1/h and 1/h^2 near boundary)
+  # Larger eps improves numerical stability of inverse barrier derivatives
+  eps: 1.0e-4
+
+environment:
+  # Paper Dubins obstacle field (5 circles, r=1)
+  obstacles:
+    - center: [4.0, 2.0]
+      radius: 1.0
+    - center: [2.0, 4.0]
+      radius: 1.0
+    - center: [4.0, 8.0]
+      radius: 1.0
+    - center: [8.0, 4.0]
+      radius: 1.0
+    - center: [6.0, 6.0]
+      radius: 1.0
+  # Smooth-min temperature for aggregating multiple obstacle constraints into
+  # a single differentiable safety function h(x) ≈ min_i h_i(x).
+  obstacle_smoothmin_beta: 20.0
+  obstacle_aggregation: smoothmin
+
+cost_nominal:
+  Q: [1.0, 1.0, 0.0]
+  R: [1.0, 1.0]
+  q_b: 1.0
+  Qf: [1000.0, 1000.0, 1000.0]
+
+cost_auxiliary:
+  # For auxiliary tracking, we will use weights derived from nominal unless overridden.
+  # Paper: "initialized to all ones" (supplementary 9_experiments.tex, line 17 & 24)
+  Q: [1.0, 1.0, 1.0]
+  R: [1.0, 1.0]
+  q_b: 1.0
+
+adaptation:
+  # Paper uses eta=1e-2 with momentum; nominal fixed for Dubins, ancillary adapts.
+  lr_eta: 5.0e-2
+  steps: 1
+  momentum: 0.9
+  # Paper (Appendix F): nominal fixed for Dubins; only ancillary adapts.
+  adapt_nominal: false
+  adapt_ancillary: true
+  # Paper constraints (projected gradient descent): Q>=0, R>=1e-4, qb in [0,1], alpha>=0, gamma in [-1,1]
+  project_params: true
+

@@ -1,4 +1,4 @@
-## Differentiable Tube MPC (PyTorch-only)
+## Differentiable Tube MPC 
 
 This folder contains a implementation of a *differentiable two-layer Tube MPC* controller with a **discrete barrier state (DBaS)** safety embedding and an **IFT/DDP-based gradient computation**.  
 
